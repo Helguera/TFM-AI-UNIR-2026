@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+
+{% block title %}Registro - Surveillance System{% endblock %}
+
+{% block body %}
+<div class="login-container">
+    <div class="login-card">
+        <div class="login-logo">
+            <div class="logo-icon">🎯</div>
+            <h1>Surveillance<span>HQ</span></h1>
+            <p style="color: var(--text-secondary); margin-top: 0.5rem;">Crear Nueva Cuenta</p>
+        </div>
+
+        <div id="error-message" class="alert-message error" style="display: none;"></div>
+        <div id="success-message" class="alert-message success" style="display: none;"></div>
+
+        <form id="register-form" class="login-form">
+            <div class="form-group">
+                <label class="form-label" for="username">Usuario</label>
+                <input type="text" id="username" name="username" class="form-input" placeholder="Elige un nombre de usuario" required minlength="3">
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label" for="email">Email</label>
+                <input type="email" id="email" name="email" class="form-input" placeholder="tu@email.com" required>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label" for="password">Contraseña</label>
+                <input type="password" id="password" name="password" class="form-input" placeholder="Mínimo 6 caracteres" required minlength="6">
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label" for="password2">Confirmar Contraseña</label>
+                <input type="password" id="password2" name="password2" class="form-input" placeholder="Repite la contraseña" required>
+            </div>
+
+            <button type="submit" class="btn btn-primary">
+                <span>Crear Cuenta</span>
+            </button>
+        </form>
+
+        <div class="login-footer">
+            ¿Ya tienes cuenta? <a href="/login">Inicia sesión</a>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('register-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const password = document.getElementById('password').value;
+    const password2 = document.getElementById('password2').value;
+    
+    if (password !== password2) {
+        const errorDiv = document.getElementById('error-message');
+        errorDiv.textContent = 'Las contraseñas no coinciden';
+        errorDiv.style.display = 'flex';
+        return;
+    }
+    
+    const data = {
+        username: document.getElementById('username').value,
+        email: document.getElementById('email').value,
+        password: password
+    };
+    
+    try {
+        const response = await fetch('/api/auth/register', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(data)
+        });
+        
+        if (response.ok) {
+            const successDiv = document.getElementById('success-message');
+            successDiv.textContent = 'Cuenta creada correctamente. Redirigiendo...';
+            successDiv.style.display = 'flex';
+            document.getElementById('error-message').style.display = 'none';
+            setTimeout(() => {
+                window.location.href = '/login';
+            }, 1500);
+        } else {
+            const result = await response.json();
+            const errorDiv = document.getElementById('error-message');
+            errorDiv.textContent = result.detail || 'Error al crear la cuenta';
+            errorDiv.style.display = 'flex';
+        }
+    } catch (error) {
+        const errorDiv = document.getElementById('error-message');
+        errorDiv.textContent = 'Error de conexión';
+        errorDiv.style.display = 'flex';
+    }
+});
+</script>
+{% endblock %}
+

@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Surveillance System{% endblock %}</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎯</text></svg>">
+    {% block head %}{% endblock %}
+</head>
+<body>
+    {% block body %}{% endblock %}
+    
+    <script>
+        // Global utilities
+        const API = {
+            async request(url, options = {}) {
+                const response = await fetch(url, {
+                    ...options,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...options.headers
+                    }
+                });
+                if (response.status === 401) {
+                    window.location.href = '/login';
+                    return;
+                }
+                return response;
+            },
+            async get(url) {
+                return this.request(url);
+            },
+            async post(url, data) {
+                return this.request(url, {
+                    method: 'POST',
+                    body: JSON.stringify(data)
+                });
+            },
+            async put(url, data) {
+                return this.request(url, {
+                    method: 'PUT',
+                    body: JSON.stringify(data)
+                });
+            },
+            async delete(url) {
+                return this.request(url, { method: 'DELETE' });
+            }
+        };
+
+        // Toast notifications
+        function showToast(message, type = 'success') {
+            const toast = document.createElement('div');
+            toast.className = `alert-message ${type}`;
+            toast.style.cssText = 'position: fixed; top: 20px; right: 20px; z-index: 9999; animation: slideIn 0.3s ease;';
+            toast.innerHTML = `<span>${type === 'success' ? '✓' : '✕'}</span> ${message}`;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+    </script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>
+

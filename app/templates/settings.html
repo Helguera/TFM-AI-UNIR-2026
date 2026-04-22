@@ -1,0 +1,399 @@
+{% extends "base.html" %}
+
+{% block title %}Configuración - Surveillance System{% endblock %}
+
+{% block body %}
+<div class="app-container">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="logo">
+            <div class="logo-icon">🎯</div>
+            <div class="logo-text">Surveillance<span>HQ</span></div>
+        </div>
+
+        <ul class="nav-menu">
+            <li class="nav-item">
+                <a href="/dashboard" class="nav-link">
+                    <span class="icon">📊</span>
+                    <span>Dashboard</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="/cameras" class="nav-link">
+                    <span class="icon">📹</span>
+                    <span>Cámaras</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="/alerts" class="nav-link">
+                    <span class="icon">🚨</span>
+                    <span>Alertas</span>
+                    <span class="nav-badge" id="unread-badge" style="display: none;">0</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="/settings" class="nav-link active">
+                    <span class="icon">⚙️</span>
+                    <span>Configuración</span>
+                </a>
+            </li>
+        </ul>
+
+        <div class="user-section">
+            <div class="user-info">
+                <div class="user-avatar">{{ user.username[0]|upper }}</div>
+                <div>
+                    <div class="user-name">{{ user.username }}</div>
+                    <div class="user-role">{{ 'Admin' if user.is_admin else 'Usuario' }}</div>
+                </div>
+            </div>
+            <a href="#" onclick="logout()" class="btn btn-secondary btn-sm" style="width: 100%;">
+                Cerrar Sesión
+            </a>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="page-header">
+            <h1 class="page-title"><span class="accent">Configuración</span></h1>
+        </div>
+
+        <!-- Telegram Configuration -->
+        <div style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 1.5rem; margin-bottom: 1.5rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                <div>
+                    <h2 style="font-size: 1.25rem; margin-bottom: 0.25rem;">
+                        <span style="margin-right: 0.5rem;">📱</span> Telegram Bot
+                    </h2>
+                    <p style="color: var(--text-secondary); font-size: 0.9rem;">
+                        Recibe notificaciones de alertas en tu Telegram
+                    </p>
+                </div>
+                <div id="telegram-status">
+                    <span class="camera-status-badge stopped">
+                        <span class="pulse"></span>
+                        NO CONFIGURADO
+                    </span>
+                </div>
+            </div>
+
+            <div id="telegram-not-configured" style="display: none;">
+                <div class="empty-state" style="padding: 2rem;">
+                    <div class="icon">📱</div>
+                    <h3>Telegram no configurado</h3>
+                    <p>Configura tu bot de Telegram para recibir notificaciones de alertas</p>
+                    <button class="btn btn-primary" onclick="showTelegramModal()">Configurar Telegram</button>
+                </div>
+            </div>
+
+            <div id="telegram-configured" style="display: none;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+                    <div style="background: var(--bg-tertiary); padding: 1rem; border-radius: var(--radius-md);">
+                        <div style="color: var(--text-secondary); font-size: 0.8rem; margin-bottom: 0.25rem;">Chat ID</div>
+                        <div id="tg-chat-id" style="font-family: var(--font-mono);">-</div>
+                    </div>
+                    <div style="background: var(--bg-tertiary); padding: 1rem; border-radius: var(--radius-md);">
+                        <div style="color: var(--text-secondary); font-size: 0.8rem; margin-bottom: 0.25rem;">Bot Token</div>
+                        <div id="tg-token" style="font-family: var(--font-mono);">-</div>
+                    </div>
+                    <div style="background: var(--bg-tertiary); padding: 1rem; border-radius: var(--radius-md);">
+                        <div style="color: var(--text-secondary); font-size: 0.8rem; margin-bottom: 0.25rem;">Notificaciones</div>
+                        <div id="tg-notify" style="color: var(--accent-green);">-</div>
+                    </div>
+                </div>
+                
+                <div style="display: flex; gap: 0.75rem;">
+                    <button class="btn btn-secondary" onclick="showTelegramModal(true)">✏️ Editar</button>
+                    <button class="btn btn-danger" onclick="deleteTelegramConfig()">🗑️ Eliminar</button>
+                </div>
+            </div>
+
+            <!-- Setup Instructions -->
+            <div style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border-color);">
+                <h3 style="font-size: 1rem; margin-bottom: 1rem;">📋 Cómo configurar el bot de Telegram</h3>
+                <ol style="color: var(--text-secondary); font-size: 0.9rem; line-height: 1.8; padding-left: 1.25rem;">
+                    <li>Abre Telegram y busca <strong>@BotFather</strong></li>
+                    <li>Envía el comando <code style="background: var(--bg-tertiary); padding: 0.2rem 0.4rem; border-radius: 4px;">/newbot</code> y sigue las instrucciones</li>
+                    <li>Copia el <strong>token</strong> que te proporciona BotFather</li>
+                    <li>Busca tu bot en Telegram y envíale cualquier mensaje</li>
+                    <li>Visita <code style="background: var(--bg-tertiary); padding: 0.2rem 0.4rem; border-radius: 4px;">https://api.telegram.org/bot&lt;TOKEN&gt;/getUpdates</code> para obtener tu <strong>Chat ID</strong></li>
+                    <li>Introduce el token y chat ID aquí y haz clic en "Probar conexión"</li>
+                </ol>
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- Telegram Config Modal -->
+<div class="modal-overlay" id="telegram-modal">
+    <div class="modal">
+        <div class="modal-header">
+            <span class="modal-title" id="telegram-modal-title">Configurar Telegram</span>
+            <button class="modal-close" onclick="closeTelegramModal()">&times;</button>
+        </div>
+        <form id="telegram-form">
+            <div class="modal-body">
+                <div id="telegram-error" class="alert-message error" style="display: none;"></div>
+                <div id="telegram-success" class="alert-message success" style="display: none;"></div>
+
+                <div class="form-group">
+                    <label class="form-label" for="bot-token">Bot Token</label>
+                    <input type="text" id="bot-token" class="form-input" placeholder="123456789:ABCdefGHIjklMNOpqrsTUVwxyz" required>
+                    <small style="color: var(--text-muted); font-size: 0.8rem;">El token que te proporciona @BotFather</small>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label" for="chat-id">Chat ID</label>
+                    <input type="text" id="chat-id" class="form-input" placeholder="123456789" required>
+                    <small style="color: var(--text-muted); font-size: 0.8rem;">Tu ID de chat personal o de grupo</small>
+                </div>
+
+                <div class="form-group">
+                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                        <input type="checkbox" id="tg-enabled" checked style="width: 18px; height: 18px;">
+                        <span>Activar bot</span>
+                    </label>
+                </div>
+
+                <div class="form-group">
+                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                        <input type="checkbox" id="tg-notify-alerts" checked style="width: 18px; height: 18px;">
+                        <span>Notificar alertas de intrusión</span>
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="testTelegramConnection()">🔗 Probar conexión</button>
+                <button type="submit" class="btn btn-primary">Guardar</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentConfig = null;
+
+async function loadTelegramConfig() {
+    try {
+        const res = await API.get('/api/telegram/config');
+        if (res.ok) {
+            currentConfig = await res.json();
+            showConfigured(currentConfig);
+        } else if (res.status === 404) {
+            showNotConfigured();
+        }
+        
+        // Load status
+        const statusRes = await API.get('/api/telegram/status');
+        if (statusRes.ok) {
+            const status = await statusRes.json();
+            updateStatus(status);
+        }
+
+        // Load unread count
+        const statsRes = await API.get('/api/alerts/stats');
+        if (statsRes.ok) {
+            const stats = await statsRes.json();
+            const badge = document.getElementById('unread-badge');
+            if (stats.unread_alerts > 0) {
+                badge.textContent = stats.unread_alerts;
+                badge.style.display = 'block';
+            }
+        }
+    } catch (error) {
+        console.error('Error loading config:', error);
+        showNotConfigured();
+    }
+}
+
+function showNotConfigured() {
+    document.getElementById('telegram-not-configured').style.display = 'block';
+    document.getElementById('telegram-configured').style.display = 'none';
+}
+
+function showConfigured(config) {
+    document.getElementById('telegram-not-configured').style.display = 'none';
+    document.getElementById('telegram-configured').style.display = 'block';
+    
+    document.getElementById('tg-chat-id').textContent = config.chat_id;
+    document.getElementById('tg-token').textContent = config.bot_token_masked;
+    document.getElementById('tg-notify').textContent = config.notify_on_alert ? 'Activadas' : 'Desactivadas';
+    document.getElementById('tg-notify').style.color = config.notify_on_alert ? 'var(--accent-green)' : 'var(--text-muted)';
+}
+
+function updateStatus(status) {
+    const statusEl = document.getElementById('telegram-status');
+    if (status.configured && status.bot_running) {
+        statusEl.innerHTML = `
+            <span class="camera-status-badge running">
+                <span class="pulse"></span>
+                ACTIVO
+            </span>
+        `;
+    } else if (status.configured) {
+        statusEl.innerHTML = `
+            <span class="camera-status-badge stopped">
+                <span class="pulse"></span>
+                CONFIGURADO
+            </span>
+        `;
+    } else {
+        statusEl.innerHTML = `
+            <span class="camera-status-badge stopped">
+                <span class="pulse"></span>
+                NO CONFIGURADO
+            </span>
+        `;
+    }
+}
+
+function showTelegramModal(edit = false) {
+    document.getElementById('telegram-modal-title').textContent = edit ? 'Editar Telegram' : 'Configurar Telegram';
+    document.getElementById('telegram-error').style.display = 'none';
+    document.getElementById('telegram-success').style.display = 'none';
+    
+    if (edit && currentConfig) {
+        document.getElementById('chat-id').value = currentConfig.chat_id;
+        document.getElementById('bot-token').value = '';  // Don't show token
+        document.getElementById('tg-enabled').checked = currentConfig.is_enabled;
+        document.getElementById('tg-notify-alerts').checked = currentConfig.notify_on_alert;
+    } else {
+        document.getElementById('bot-token').value = '';
+        document.getElementById('chat-id').value = '';
+        document.getElementById('tg-enabled').checked = true;
+        document.getElementById('tg-notify-alerts').checked = true;
+    }
+    
+    document.getElementById('telegram-modal').classList.add('active');
+}
+
+function closeTelegramModal() {
+    document.getElementById('telegram-modal').classList.remove('active');
+}
+
+async function testTelegramConnection() {
+    const token = document.getElementById('bot-token').value;
+    const chatId = document.getElementById('chat-id').value;
+    
+    if (!token || !chatId) {
+        document.getElementById('telegram-error').textContent = 'Introduce el token y chat ID';
+        document.getElementById('telegram-error').style.display = 'flex';
+        return;
+    }
+    
+    try {
+        const res = await API.post('/api/telegram/test', {
+            bot_token: token,
+            chat_id: chatId,
+            is_enabled: true,
+            notify_on_alert: true
+        });
+        
+        const result = await res.json();
+        
+        if (result.success) {
+            document.getElementById('telegram-success').textContent = '✓ Conexión exitosa! Revisa tu Telegram';
+            document.getElementById('telegram-success').style.display = 'flex';
+            document.getElementById('telegram-error').style.display = 'none';
+        } else {
+            document.getElementById('telegram-error').textContent = result.message;
+            document.getElementById('telegram-error').style.display = 'flex';
+            document.getElementById('telegram-success').style.display = 'none';
+        }
+    } catch (error) {
+        document.getElementById('telegram-error').textContent = 'Error de conexión';
+        document.getElementById('telegram-error').style.display = 'flex';
+    }
+}
+
+document.getElementById('telegram-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const data = {
+        bot_token: document.getElementById('bot-token').value,
+        chat_id: document.getElementById('chat-id').value,
+        is_enabled: document.getElementById('tg-enabled').checked,
+        notify_on_alert: document.getElementById('tg-notify-alerts').checked
+    };
+    
+    // If editing and no new token provided, we need to handle this
+    if (!data.bot_token && currentConfig) {
+        // Use PUT to update only changed fields
+        const updateData = {
+            chat_id: data.chat_id,
+            is_enabled: data.is_enabled,
+            notify_on_alert: data.notify_on_alert
+        };
+        
+        try {
+            const res = await API.put('/api/telegram/config', updateData);
+            if (res.ok) {
+                showToast('Configuración actualizada');
+                closeTelegramModal();
+                loadTelegramConfig();
+            } else {
+                const result = await res.json();
+                document.getElementById('telegram-error').textContent = result.detail || 'Error al guardar';
+                document.getElementById('telegram-error').style.display = 'flex';
+            }
+        } catch (error) {
+            document.getElementById('telegram-error').textContent = 'Error de conexión';
+            document.getElementById('telegram-error').style.display = 'flex';
+        }
+        return;
+    }
+    
+    try {
+        const res = await API.post('/api/telegram/config', data);
+        if (res.ok) {
+            showToast('Telegram configurado correctamente');
+            closeTelegramModal();
+            loadTelegramConfig();
+        } else {
+            const result = await res.json();
+            document.getElementById('telegram-error').textContent = result.detail || 'Error al guardar';
+            document.getElementById('telegram-error').style.display = 'flex';
+        }
+    } catch (error) {
+        document.getElementById('telegram-error').textContent = 'Error de conexión';
+        document.getElementById('telegram-error').style.display = 'flex';
+    }
+});
+
+async function deleteTelegramConfig() {
+    if (!confirm('¿Estás seguro de eliminar la configuración de Telegram?')) return;
+    
+    try {
+        const res = await API.delete('/api/telegram/config');
+        if (res.ok) {
+            showToast('Configuración eliminada');
+            currentConfig = null;
+            loadTelegramConfig();
+        } else {
+            showToast('Error al eliminar', 'error');
+        }
+    } catch (error) {
+        showToast('Error de conexión', 'error');
+    }
+}
+
+async function logout() {
+    await API.post('/api/auth/logout', {});
+    window.location.href = '/login';
+}
+
+// Close modal on click outside
+document.getElementById('telegram-modal').addEventListener('click', (e) => {
+    if (e.target.classList.contains('modal-overlay')) {
+        closeTelegramModal();
+    }
+});
+
+// Initial load
+loadTelegramConfig();
+</script>
+{% endblock %}
+

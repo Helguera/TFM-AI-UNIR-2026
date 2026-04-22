@@ -1,0 +1,370 @@
+{% extends "base.html" %}
+
+{% block title %}Cámaras - Surveillance System{% endblock %}
+
+{% block body %}
+<div class="app-container">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="logo">
+            <div class="logo-icon">🎯</div>
+            <div class="logo-text">Surveillance<span>HQ</span></div>
+        </div>
+
+        <ul class="nav-menu">
+            <li class="nav-item">
+                <a href="/dashboard" class="nav-link">
+                    <span class="icon">📊</span>
+                    <span>Dashboard</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="/cameras" class="nav-link active">
+                    <span class="icon">📹</span>
+                    <span>Cámaras</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="/alerts" class="nav-link">
+                    <span class="icon">🚨</span>
+                    <span>Alertas</span>
+                    <span class="nav-badge" id="unread-badge" style="display: none;">0</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="/settings" class="nav-link">
+                    <span class="icon">⚙️</span>
+                    <span>Configuración</span>
+                </a>
+            </li>
+        </ul>
+
+        <div class="user-section">
+            <div class="user-info">
+                <div class="user-avatar">{{ user.username[0]|upper }}</div>
+                <div>
+                    <div class="user-name">{{ user.username }}</div>
+                    <div class="user-role">{{ 'Admin' if user.is_admin else 'Usuario' }}</div>
+                </div>
+            </div>
+            <a href="#" onclick="logout()" class="btn btn-secondary btn-sm" style="width: 100%;">
+                Cerrar Sesión
+            </a>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="page-header">
+            <h1 class="page-title">Gestión de <span class="accent">Cámaras</span></h1>
+            <button class="btn btn-primary" onclick="openAddModal()">
+                <span>+</span> Añadir Cámara
+            </button>
+        </div>
+
+        <div class="camera-grid" id="cameras-grid">
+            <div class="empty-state" id="no-cameras" style="display: none; grid-column: 1/-1;">
+                <div class="icon">📹</div>
+                <h3>No hay cámaras configuradas</h3>
+                <p>Añade tu primera cámara RTSP para comenzar la vigilancia</p>
+                <button class="btn btn-primary" onclick="openAddModal()">Añadir Cámara</button>
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- Add/Edit Camera Modal -->
+<div class="modal-overlay" id="camera-modal">
+    <div class="modal">
+        <div class="modal-header">
+            <span class="modal-title" id="modal-title">Añadir Cámara</span>
+            <button class="modal-close" onclick="closeModal()">&times;</button>
+        </div>
+        <form id="camera-form">
+            <div class="modal-body">
+                <input type="hidden" id="camera-id">
+                
+                <div class="form-group">
+                    <label class="form-label" for="camera-name">Nombre</label>
+                    <input type="text" id="camera-name" class="form-input" placeholder="Ej: Cámara Entrada" required>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label" for="camera-url">URL RTSP</label>
+                    <input type="text" id="camera-url" class="form-input" placeholder="rtsp://usuario:pass@ip:puerto/stream" required>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label" for="camera-location">Ubicación (opcional)</label>
+                    <input type="text" id="camera-location" class="form-input" placeholder="Ej: Puerta principal">
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div class="form-group">
+                        <label class="form-label" for="camera-confidence">Confianza mínima</label>
+                        <input type="number" id="camera-confidence" class="form-input" value="0.55" min="0.1" max="1" step="0.05">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="camera-confirm">Frames confirmación</label>
+                        <input type="number" id="camera-confirm" class="form-input" value="5" min="1" max="30">
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label" for="camera-cooldown">Cooldown alertas (segundos)</label>
+                    <input type="number" id="camera-cooldown" class="form-input" value="20" min="5" max="300">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+                <button type="submit" class="btn btn-primary">Guardar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal-overlay" id="delete-modal">
+    <div class="modal" style="max-width: 400px;">
+        <div class="modal-header">
+            <span class="modal-title">Eliminar Cámara</span>
+            <button class="modal-close" onclick="closeDeleteModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <p>¿Estás seguro de que quieres eliminar esta cámara? Se eliminarán también todas sus alertas asociadas.</p>
+            <input type="hidden" id="delete-camera-id">
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" onclick="closeDeleteModal()">Cancelar</button>
+            <button type="button" class="btn btn-danger" onclick="confirmDelete()">Eliminar</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let cameras = [];
+
+async function loadCameras() {
+    try {
+        const res = await API.get('/api/cameras/');
+        if (res.ok) {
+            cameras = await res.json();
+            renderCameras();
+        }
+        
+        // Load unread count
+        const statsRes = await API.get('/api/alerts/stats');
+        if (statsRes.ok) {
+            const stats = await statsRes.json();
+            const badge = document.getElementById('unread-badge');
+            if (stats.unread_alerts > 0) {
+                badge.textContent = stats.unread_alerts;
+                badge.style.display = 'block';
+            } else {
+                badge.style.display = 'none';
+            }
+        }
+    } catch (error) {
+        console.error('Error loading cameras:', error);
+    }
+}
+
+function renderCameras() {
+    const grid = document.getElementById('cameras-grid');
+    const noCameras = document.getElementById('no-cameras');
+    
+    // Remove existing camera cards
+    grid.querySelectorAll('.camera-card').forEach(el => el.remove());
+    
+    if (cameras.length === 0) {
+        noCameras.style.display = 'block';
+        return;
+    }
+    
+    noCameras.style.display = 'none';
+    
+    cameras.forEach(camera => {
+        const card = document.createElement('div');
+        card.className = 'camera-card';
+        card.id = `camera-${camera.id}`;
+        
+        const streamSrc = camera.is_running ? `/api/cameras/${camera.id}/stream` : '';
+        
+        card.innerHTML = `
+            <div class="camera-preview">
+                ${camera.is_running ? 
+                    `<img src="${streamSrc}" alt="${camera.name}" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                     <div class="placeholder" style="display: none;">📹</div>` :
+                    `<div class="placeholder">📹</div>`
+                }
+                <div class="camera-status-badge ${camera.is_running ? 'running' : 'stopped'}">
+                    <span class="pulse"></span>
+                    ${camera.is_running ? 'EN VIVO' : 'DETENIDA'}
+                </div>
+            </div>
+            <div class="camera-info">
+                <div class="camera-name">${camera.name}</div>
+                <div class="camera-location">${camera.location || 'Sin ubicación'}</div>
+                <div class="camera-stats">
+                    <div><span>Conf:</span> <strong>${(camera.confidence_threshold * 100).toFixed(0)}%</strong></div>
+                    <div><span>Frames:</span> <strong>${camera.confirm_frames}</strong></div>
+                    <div><span>CD:</span> <strong>${camera.cooldown_seconds}s</strong></div>
+                </div>
+                <div class="camera-actions">
+                    ${camera.is_running ?
+                        `<button class="btn btn-danger btn-sm" onclick="stopCamera(${camera.id})">⏹ Detener</button>` :
+                        `<button class="btn btn-success btn-sm" onclick="startCamera(${camera.id})">▶ Iniciar</button>`
+                    }
+                    <button class="btn btn-secondary btn-sm btn-icon" onclick="editCamera(${camera.id})" title="Editar">✏️</button>
+                    <button class="btn btn-secondary btn-sm btn-icon" onclick="openDeleteModal(${camera.id})" title="Eliminar">🗑️</button>
+                </div>
+            </div>
+        `;
+        
+        grid.appendChild(card);
+    });
+}
+
+async function startCamera(id) {
+    try {
+        const res = await API.post(`/api/cameras/${id}/start`, {});
+        if (res.ok) {
+            showToast('Cámara iniciada');
+            loadCameras();
+        } else {
+            const data = await res.json();
+            showToast(data.detail || 'Error al iniciar', 'error');
+        }
+    } catch (error) {
+        showToast('Error de conexión', 'error');
+    }
+}
+
+async function stopCamera(id) {
+    try {
+        const res = await API.post(`/api/cameras/${id}/stop`, {});
+        if (res.ok) {
+            showToast('Cámara detenida');
+            loadCameras();
+        } else {
+            const data = await res.json();
+            showToast(data.detail || 'Error al detener', 'error');
+        }
+    } catch (error) {
+        showToast('Error de conexión', 'error');
+    }
+}
+
+function openAddModal() {
+    document.getElementById('modal-title').textContent = 'Añadir Cámara';
+    document.getElementById('camera-id').value = '';
+    document.getElementById('camera-name').value = '';
+    document.getElementById('camera-url').value = '';
+    document.getElementById('camera-location').value = '';
+    document.getElementById('camera-confidence').value = '0.55';
+    document.getElementById('camera-confirm').value = '5';
+    document.getElementById('camera-cooldown').value = '20';
+    document.getElementById('camera-modal').classList.add('active');
+}
+
+function editCamera(id) {
+    const camera = cameras.find(c => c.id === id);
+    if (!camera) return;
+    
+    document.getElementById('modal-title').textContent = 'Editar Cámara';
+    document.getElementById('camera-id').value = camera.id;
+    document.getElementById('camera-name').value = camera.name;
+    document.getElementById('camera-url').value = camera.rtsp_url;
+    document.getElementById('camera-location').value = camera.location || '';
+    document.getElementById('camera-confidence').value = camera.confidence_threshold;
+    document.getElementById('camera-confirm').value = camera.confirm_frames;
+    document.getElementById('camera-cooldown').value = camera.cooldown_seconds;
+    document.getElementById('camera-modal').classList.add('active');
+}
+
+function closeModal() {
+    document.getElementById('camera-modal').classList.remove('active');
+}
+
+function openDeleteModal(id) {
+    document.getElementById('delete-camera-id').value = id;
+    document.getElementById('delete-modal').classList.add('active');
+}
+
+function closeDeleteModal() {
+    document.getElementById('delete-modal').classList.remove('active');
+}
+
+async function confirmDelete() {
+    const id = document.getElementById('delete-camera-id').value;
+    try {
+        const res = await API.delete(`/api/cameras/${id}`);
+        if (res.ok) {
+            showToast('Cámara eliminada');
+            closeDeleteModal();
+            loadCameras();
+        } else {
+            const data = await res.json();
+            showToast(data.detail || 'Error al eliminar', 'error');
+        }
+    } catch (error) {
+        showToast('Error de conexión', 'error');
+    }
+}
+
+document.getElementById('camera-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const id = document.getElementById('camera-id').value;
+    const data = {
+        name: document.getElementById('camera-name').value,
+        rtsp_url: document.getElementById('camera-url').value,
+        location: document.getElementById('camera-location').value || null,
+        confidence_threshold: parseFloat(document.getElementById('camera-confidence').value),
+        confirm_frames: parseInt(document.getElementById('camera-confirm').value),
+        cooldown_seconds: parseInt(document.getElementById('camera-cooldown').value)
+    };
+    
+    try {
+        let res;
+        if (id) {
+            res = await API.put(`/api/cameras/${id}`, data);
+        } else {
+            res = await API.post('/api/cameras/', data);
+        }
+        
+        if (res.ok) {
+            showToast(id ? 'Cámara actualizada' : 'Cámara añadida');
+            closeModal();
+            loadCameras();
+        } else {
+            const result = await res.json();
+            showToast(result.detail || 'Error al guardar', 'error');
+        }
+    } catch (error) {
+        showToast('Error de conexión', 'error');
+    }
+});
+
+async function logout() {
+    await API.post('/api/auth/logout', {});
+    window.location.href = '/login';
+}
+
+// Close modals on click outside
+document.querySelectorAll('.modal-overlay').forEach(overlay => {
+    overlay.addEventListener('click', (e) => {
+        if (e.target.classList.contains('modal-overlay')) {
+            e.target.classList.remove('active');
+        }
+    });
+});
+
+// Initial load and refresh
+loadCameras();
+setInterval(loadCameras, 5000);
+</script>
+{% endblock %}
+

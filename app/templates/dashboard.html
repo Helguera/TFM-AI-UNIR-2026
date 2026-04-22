@@ -1,0 +1,292 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Surveillance System{% endblock %}
+
+{% block body %}
+<div class="app-container">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="logo">
+            <div class="logo-icon">🎯</div>
+            <div class="logo-text">Surveillance<span>HQ</span></div>
+        </div>
+
+        <ul class="nav-menu">
+            <li class="nav-item">
+                <a href="/dashboard" class="nav-link active">
+                    <span class="icon">📊</span>
+                    <span>Dashboard</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="/cameras" class="nav-link">
+                    <span class="icon">📹</span>
+                    <span>Cámaras</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="/alerts" class="nav-link">
+                    <span class="icon">🚨</span>
+                    <span>Alertas</span>
+                    <span class="nav-badge" id="unread-badge" style="display: none;">0</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="/settings" class="nav-link">
+                    <span class="icon">⚙️</span>
+                    <span>Configuración</span>
+                </a>
+            </li>
+        </ul>
+
+        <div class="user-section">
+            <div class="user-info">
+                <div class="user-avatar">{{ user.username[0]|upper }}</div>
+                <div>
+                    <div class="user-name">{{ user.username }}</div>
+                    <div class="user-role">{{ 'Admin' if user.is_admin else 'Usuario' }}</div>
+                </div>
+            </div>
+            <a href="#" onclick="logout()" class="btn btn-secondary btn-sm" style="width: 100%;">
+                Cerrar Sesión
+            </a>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="page-header">
+            <h1 class="page-title">Panel de <span class="accent">Control</span></h1>
+            <span class="mono" style="color: var(--text-muted);" id="current-time"></span>
+        </div>
+
+        <!-- Stats Grid -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-icon">📹</div>
+                <div class="stat-value" id="stat-total-cameras">-</div>
+                <div class="stat-label">Cámaras Totales</div>
+            </div>
+            <div class="stat-card success">
+                <div class="stat-icon">✓</div>
+                <div class="stat-value" id="stat-running-cameras">-</div>
+                <div class="stat-label">Cámaras Activas</div>
+            </div>
+            <div class="stat-card danger">
+                <div class="stat-icon">⚠</div>
+                <div class="stat-value" id="stat-alerts-today">-</div>
+                <div class="stat-label">Alertas Hoy</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">📬</div>
+                <div class="stat-value" id="stat-unread-alerts">-</div>
+                <div class="stat-label">Sin Leer</div>
+            </div>
+        </div>
+
+        <!-- Active Cameras Preview -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <h2 style="font-size: 1.25rem;">Cámaras en Vivo</h2>
+            <a href="/cameras" class="btn btn-secondary btn-sm">Ver Todas →</a>
+        </div>
+
+        <div class="camera-grid" id="cameras-grid">
+            <div class="empty-state" id="no-cameras" style="display: none; grid-column: 1/-1;">
+                <div class="icon">📹</div>
+                <h3>No hay cámaras activas</h3>
+                <p>Añade y activa cámaras para ver el stream en vivo</p>
+                <a href="/cameras" class="btn btn-primary">Gestionar Cámaras</a>
+            </div>
+        </div>
+
+        <!-- Recent Alerts -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin: 2rem 0 1rem;">
+            <h2 style="font-size: 1.25rem;">Alertas Recientes</h2>
+            <a href="/alerts" class="btn btn-secondary btn-sm">Ver Todas →</a>
+        </div>
+
+        <div style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-lg); overflow: hidden;">
+            <table class="alerts-table" id="alerts-table">
+                <thead>
+                    <tr>
+                        <th>Tipo</th>
+                        <th>Cámara</th>
+                        <th>Confianza</th>
+                        <th>Fecha/Hora</th>
+                        <th>Imagen</th>
+                    </tr>
+                </thead>
+                <tbody id="alerts-body">
+                </tbody>
+            </table>
+            <div class="empty-state" id="no-alerts" style="display: none;">
+                <div class="icon">✓</div>
+                <h3>Sin alertas</h3>
+                <p>No hay alertas recientes. ¡Todo está tranquilo!</p>
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- Image Modal -->
+<div class="modal-overlay" id="image-modal">
+    <div class="modal" style="max-width: 800px;">
+        <div class="modal-header">
+            <span class="modal-title">Captura de Alerta</span>
+            <button class="modal-close" onclick="closeModal()">&times;</button>
+        </div>
+        <div class="modal-body" style="padding: 0;">
+            <img id="modal-image" src="" alt="Alert capture" style="width: 100%; display: block;">
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Update clock
+function updateClock() {
+    const now = new Date();
+    document.getElementById('current-time').textContent = now.toLocaleString('es-ES', {
+        weekday: 'short',
+        day: '2-digit',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+    });
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// Load dashboard data
+async function loadDashboard() {
+    try {
+        // Load stats
+        const statsRes = await API.get('/api/alerts/stats');
+        if (statsRes.ok) {
+            const stats = await statsRes.json();
+            document.getElementById('stat-total-cameras').textContent = stats.total_cameras;
+            document.getElementById('stat-running-cameras').textContent = stats.running_cameras;
+            document.getElementById('stat-alerts-today').textContent = stats.alerts_today;
+            document.getElementById('stat-unread-alerts').textContent = stats.unread_alerts;
+            
+            const badge = document.getElementById('unread-badge');
+            if (stats.unread_alerts > 0) {
+                badge.textContent = stats.unread_alerts;
+                badge.style.display = 'block';
+            } else {
+                badge.style.display = 'none';
+            }
+        }
+
+        // Load cameras
+        const camerasRes = await API.get('/api/cameras/');
+        if (camerasRes.ok) {
+            const cameras = await camerasRes.json();
+            const grid = document.getElementById('cameras-grid');
+            const noCameras = document.getElementById('no-cameras');
+            
+            // Remove existing camera cards (keep empty state)
+            grid.querySelectorAll('.camera-card').forEach(el => el.remove());
+            
+            const runningCameras = cameras.filter(c => c.is_running);
+            
+            if (runningCameras.length === 0) {
+                noCameras.style.display = 'block';
+            } else {
+                noCameras.style.display = 'none';
+                runningCameras.slice(0, 4).forEach(camera => {
+                    grid.appendChild(createCameraCard(camera));
+                });
+            }
+        }
+
+        // Load recent alerts
+        const alertsRes = await API.get('/api/alerts/?limit=5');
+        if (alertsRes.ok) {
+            const alerts = await alertsRes.json();
+            const tbody = document.getElementById('alerts-body');
+            const noAlerts = document.getElementById('no-alerts');
+            const table = document.getElementById('alerts-table');
+            
+            tbody.innerHTML = '';
+            
+            if (alerts.length === 0) {
+                table.style.display = 'none';
+                noAlerts.style.display = 'block';
+            } else {
+                table.style.display = 'table';
+                noAlerts.style.display = 'none';
+                
+                alerts.forEach(alert => {
+                    const tr = document.createElement('tr');
+                    if (!alert.is_read) tr.classList.add('alert-unread');
+                    
+                    tr.innerHTML = `
+                        <td><span class="alert-type">🚨 ${alert.event_type}</span></td>
+                        <td>${alert.camera_name || 'Cámara ' + alert.camera_id}</td>
+                        <td class="alert-confidence">${alert.confidence ? (alert.confidence * 100).toFixed(1) + '%' : '-'}</td>
+                        <td class="alert-timestamp">${new Date(alert.created_at).toLocaleString('es-ES')}</td>
+                        <td>
+                            ${alert.image_path ? 
+                                `<img src="/api/alerts/${alert.id}/image" class="alert-thumbnail" onclick="showImage('/api/alerts/${alert.id}/image')">` 
+                                : '-'}
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
+        }
+    } catch (error) {
+        console.error('Error loading dashboard:', error);
+    }
+}
+
+function createCameraCard(camera) {
+    const card = document.createElement('div');
+    card.className = 'camera-card';
+    card.innerHTML = `
+        <div class="camera-preview">
+            <img src="/api/cameras/${camera.id}/stream" alt="${camera.name}" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+            <div class="placeholder" style="display: none;">📹</div>
+            <div class="camera-status-badge ${camera.is_running ? 'running' : 'stopped'}">
+                <span class="pulse"></span>
+                ${camera.is_running ? 'EN VIVO' : 'DETENIDA'}
+            </div>
+        </div>
+        <div class="camera-info">
+            <div class="camera-name">${camera.name}</div>
+            <div class="camera-location">${camera.location || 'Sin ubicación'}</div>
+        </div>
+    `;
+    return card;
+}
+
+function showImage(url) {
+    document.getElementById('modal-image').src = url;
+    document.getElementById('image-modal').classList.add('active');
+}
+
+function closeModal() {
+    document.getElementById('image-modal').classList.remove('active');
+}
+
+async function logout() {
+    await API.post('/api/auth/logout', {});
+    window.location.href = '/login';
+}
+
+// Close modal on click outside
+document.getElementById('image-modal').addEventListener('click', (e) => {
+    if (e.target.classList.contains('modal-overlay')) {
+        closeModal();
+    }
+});
+
+// Initial load and refresh
+loadDashboard();
+setInterval(loadDashboard, 5000); // Refresh every 5 seconds
+</script>
+{% endblock %}
+

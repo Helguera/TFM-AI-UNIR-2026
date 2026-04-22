@@ -1,0 +1,56 @@
+# Keep only: app/, models/, Dockerfile, docker-compose.yml
+
+# Standalone scripts
+capture.py
+capture_rtsp.py
+rtsp_person_detection.py
+rtsp_multi_person_detection.py
+telegram.txt
+
+# Directories to exclude
+evidences/
+mediamtx1/
+mediamtx2/
+venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Databases and logs
+*.db
+*.sqlite3
+log.txt
+*.log
+
+# Media files
+*.mp4
+*.jpg
+*.jpeg
+*.png
+
+# IDE / editors
+.idea/
+.vscode/
+*~
+.*.sw?
+
+# macOS
+.DS_Store
+
+# Testing / coverage
+.pytest_cache/
+.mypy_cache/
+htmlcov/
+.coverage*
+coverage.xml
+
+# Misc
+.cache
+.env
