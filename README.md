@@ -2,6 +2,8 @@
 
 Real-time video surveillance system with automatic person detection via RTSP streams, built with FastAPI.
 
+The full project thesis is available [here](Thesis.pdf).
+
 ## Features
 
 - **Authentication**: Login with username/password and JWT tokens
